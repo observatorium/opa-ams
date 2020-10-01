@@ -1,0 +1,14 @@
+[
+    {
+        "action":"read",
+        "account_username":"up",
+        "organization_id":"",
+        "resource_type":"MetricsTest-Oidc"
+    },
+    {
+        "action":"write",
+        "account_username":"up",
+        "organization_id":"",
+        "resource_type":"MetricsTest-Oidc"
+    }
+]
