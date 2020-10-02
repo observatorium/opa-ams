@@ -27,7 +27,6 @@ import (
 	"github.com/openshift/telemeter/pkg/cache"
 	"github.com/openshift/telemeter/pkg/cache/memcached"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -149,7 +148,8 @@ func main() {
 	defer level.Info(logger).Log("msg", "exiting")
 
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(requestCounter, requestDuration)
+	hi := newHandlerInstrumenter(reg)
+	rti := newRoundTripperInstrumenter(reg)
 
 	healthchecks := healthcheck.NewMetricsHandler(healthcheck.NewHandler(), reg)
 
@@ -165,7 +165,7 @@ func main() {
 	}
 	ctx := context.WithValue(context.Background(), oauth2.HTTPClient,
 		&http.Client{
-			Transport: newInstrumentedRoundTripper("oauth", http.DefaultTransport),
+			Transport: rti.NewRoundTripper("oauth", http.DefaultTransport),
 		},
 	)
 	oidcConfig := clientcredentials.Config{
@@ -180,7 +180,7 @@ func main() {
 	}
 	client := &http.Client{
 		Transport: &oauth2.Transport{
-			Base:   newInstrumentedRoundTripper("ams", http.DefaultTransport),
+			Base:   rti.NewRoundTripper("ams", http.DefaultTransport),
 			Source: oidcConfig.TokenSource(ctx),
 		},
 	}
@@ -194,7 +194,7 @@ func main() {
 	level.Info(logger).Log("msg", "configuring the OPA endpoint", "path", p)
 	a := &authorizer{client: client, url: amsURL.String()}
 	m := http.NewServeMux()
-	m.HandleFunc(p, newHandler(a, cfg.resourceTypePrefix))
+	m.HandleFunc(p, hi.NewHandler(prometheus.Labels{"handler": "data"}, http.HandlerFunc(newHandler(a, cfg.resourceTypePrefix))))
 
 	if cfg.server.healthcheckURL != "" {
 		// checks if server is up
@@ -345,32 +345,4 @@ func (a *authorizer) authorize(ctx context.Context, action, accountUsername, org
 	}
 
 	return accessReviewResponse.Allowed, nil
-}
-
-var (
-	requestCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "client_api_requests_total",
-			Help: "A counter for requests from the wrapped client.",
-		},
-		[]string{"code", "method", "client"},
-	)
-
-	requestDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "request_duration_seconds",
-			Help:    "A histogram of request latencies.",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"method", "client"},
-	)
-)
-
-func newInstrumentedRoundTripper(name string, rt http.RoundTripper) http.RoundTripper {
-	counter := requestCounter.MustCurryWith(prometheus.Labels{"client": name})
-	duration := requestDuration.MustCurryWith(prometheus.Labels{"client": name})
-
-	return promhttp.InstrumentRoundTripperCounter(counter,
-		promhttp.InstrumentRoundTripperDuration(duration, rt),
-	)
 }
