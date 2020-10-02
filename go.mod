@@ -12,7 +12,7 @@ require (
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
-	github.com/metalmatze/signal v0.0.0-20200616171423-be84551ba3ce
+	github.com/metalmatze/signal v0.0.0-20201002154727-d0c16e42a3cf
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/observatorium/observatorium v0.1.2-0.20201001162514-585e9d38dea7
 	github.com/observatorium/up v0.0.0-20200603110215-8a20b4e48ac0

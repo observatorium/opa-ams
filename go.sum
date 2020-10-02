@@ -551,6 +551,8 @@ github.com/matttproud/golang_protobuf_extensions v1.0.1 h1:4hp9jkHxhMHkqkrB3Ix0j
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/metalmatze/signal v0.0.0-20200616171423-be84551ba3ce h1:SXX/VQdzzAgUE+6qKFKni7Sx1ndbC0JWEtSxv9wyp7E=
 github.com/metalmatze/signal v0.0.0-20200616171423-be84551ba3ce/go.mod h1:3OETvrxfELvGsU2RoGGWercfeZ4bCL3+SOwzIWtJH/Q=
+github.com/metalmatze/signal v0.0.0-20201002154727-d0c16e42a3cf h1:g30K3kg3GSpKUn4ShNPrCpL4s9sePqmyu5e0K2O4nxA=
+github.com/metalmatze/signal v0.0.0-20201002154727-d0c16e42a3cf/go.mod h1:3OETvrxfELvGsU2RoGGWercfeZ4bCL3+SOwzIWtJH/Q=
 github.com/miekg/dns v1.0.14/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
 github.com/miekg/dns v1.1.15/go.mod h1:W1PPwlIAgtquWBMBEV9nkV9Cazfe8ScdGz/Lj7v3Nrg=
 github.com/miekg/dns v1.1.27/go.mod h1:KNUDUusw/aVsxyTYZM1oqvCicbwhgbNgztCETuNZ7xM=

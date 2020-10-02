@@ -22,6 +22,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/metalmatze/signal/healthcheck"
 	"github.com/metalmatze/signal/internalserver"
+	"github.com/metalmatze/signal/server/signalhttp"
 	"github.com/oklog/run"
 	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 	"github.com/openshift/telemeter/pkg/cache"
@@ -148,7 +149,7 @@ func main() {
 	defer level.Info(logger).Log("msg", "exiting")
 
 	reg := prometheus.NewRegistry()
-	hi := newHandlerInstrumenter(reg)
+	hi := signalhttp.NewHandlerInstrumenter(reg, []string{"handler"})
 	rti := newRoundTripperInstrumenter(reg)
 
 	healthchecks := healthcheck.NewMetricsHandler(healthcheck.NewHandler(), reg)
