@@ -29,18 +29,10 @@ default: opa-ams
 all: clean lint test opa-ams
 
 tmp/help.txt: opa-ams
-	./opa-ams --help &> tmp/help.txt || true
-
-tmp/load_help.txt:
-	-./test/load.sh -h > tmp/load_help.txt 2&>1
+	./opa-ams --help 2>&1 | head -n -1 > tmp/help.txt || true
 
 README.md: $(EMBEDMD) tmp/help.txt
 	$(EMBEDMD) -w README.md
-
-benchmark.md: $(EMBEDMD) tmp/load_help.txt
-	-rm -rf ./docs/loadtests
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR):$(FIRST_GOPATH)/bin ./test/load.sh -r 300 -c 1000 -m 3 -q 10 -o gnuplot
-	$(EMBEDMD) -w docs/benchmark.md
 
 opa-ams: vendor main.go $(wildcard *.go) $(wildcard */*.go)
 	CGO_ENABLED=0 GOOS=$(OS) GOARCH=amd64 GO111MODULE=on GOPROXY=https://proxy.golang.org go build -mod vendor -a -ldflags '-s -w' -o $@ .

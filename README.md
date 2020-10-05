@@ -53,5 +53,4 @@ Usage of ./opa-ams:
       --resource-type-prefix string   A prefix to add to the resource name in AMS access review requests.
       --web.internal.listen string    The address on which the internal server listens. (default ":8081")
       --web.listen string             The address on which the public server listens. (default ":8080")
-pflag: help requested
 ```
