@@ -32,7 +32,7 @@ curl \
 curl \
     --header "Content-Type: application/json" \
     --request POST \
-    --data '{"audience": ["tollbooth"], "client_id": "opa-ams", "client_secret": "secret", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_post"}' \
+    --data '{"audience": ["tollbooth"], "client_id": "opa-ams", "client_secret": "secret", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
     http://127.0.0.1:4445/clients
 
 echo "-------------------------------------------"
