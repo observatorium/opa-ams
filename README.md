@@ -37,7 +37,9 @@ It returns a response with the following structure:
 [embedmd]:# (tmp/help.txt)
 ```txt
 Usage of ./opa-ams:
-      --ams-url string                An AMS URL against which to authorize client requests.
+      --ams.mappings strings          A list of comma-separated mappings from Observatorium tenants to AMS organization IDs, e.g. foo=bar,x=y
+      --ams.mappings-path string      A path to a JSON file containing a map from Observatorium tenants to AMS organization IDs.
+      --ams.url string                An AMS URL against which to authorize client requests.
       --debug.name string             A name to add as a prefix to log lines. (default "opa-ams")
       --log.format string             The log format to use. Options: 'logfmt', 'json'. (default "logfmt")
       --log.level string              The log filtering level. Options: 'error', 'warn', 'info', 'debug'. (default "info")

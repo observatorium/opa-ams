@@ -100,7 +100,7 @@ token=$(curl \
       --oidc.client-secret=secret \
       --oidc.audience=tollbooth \
       --ams.url=http://127.0.0.1:8082 \
-      --ams.mappings=./test/config/mappings.json \
+      --ams.mappings=test-oidc=foo \
       --opa.package=observatorium \
       --memcached=localhost:11211 \
       --resource-type-prefix=observatorium \

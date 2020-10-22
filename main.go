@@ -92,7 +92,8 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&cfg.server.listen, "web.listen", ":8080", "The address on which the public server listens.")
 	flag.StringVar(&cfg.server.listenInternal, "web.internal.listen", ":8081", "The address on which the internal server listens.")
 	flag.StringVar(&cfg.amsURL, "ams.url", "", "An AMS URL against which to authorize client requests.")
-	mappingsPath := flag.String("ams.mappings", "", "A path to a JSON file containing a map from Observatorium tenant IDs to AMS organization IDs.")
+	mappingsRaw := flag.StringSlice("ams.mappings", nil, "A list of comma-separated mappings from Observatorium tenants to AMS organization IDs, e.g. foo=bar,x=y")
+	mappingsPath := flag.String("ams.mappings-path", "", "A path to a JSON file containing a map from Observatorium tenants to AMS organization IDs.")
 	flag.StringVar(&cfg.oidc.issuerURL, "oidc.issuer-url", "", "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
 	flag.StringVar(&cfg.oidc.clientSecret, "oidc.client-secret", "", "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	flag.StringVar(&cfg.oidc.clientID, "oidc.client-id", "", "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
@@ -126,13 +127,24 @@ func parseFlags() (*config, error) {
 		return nil, fmt.Errorf("invalid OPA rule name: %s", cfg.opa.rule)
 	}
 
-	mappingsRaw, err := ioutil.ReadFile(*mappingsPath)
-	if err != nil {
-		stdlog.Fatalf("unable to read JSON file: %v", err)
+	cfg.mappings = make(map[string]string)
+	for _, m := range *mappingsRaw {
+		parts := strings.Split(m, "=")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid mapping: %q", m)
+		}
+		cfg.mappings[parts[0]] = parts[1]
 	}
 
-	if err := json.Unmarshal(mappingsRaw, &cfg.mappings); err != nil {
-		stdlog.Fatalf("unable to parse contents of %s: %v", *mappingsPath, err)
+	if len(*mappingsPath) > 0 {
+		buf, err := ioutil.ReadFile(*mappingsPath)
+		if err != nil {
+			stdlog.Fatalf("unable to read JSON file: %v", err)
+		}
+
+		if err := json.Unmarshal(buf, &cfg.mappings); err != nil {
+			stdlog.Fatalf("unable to parse contents of %s: %v", *mappingsPath, err)
+		}
 	}
 
 	return cfg, nil
