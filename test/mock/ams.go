@@ -35,7 +35,7 @@ func main() {
 
 	var valid []map[string]string
 	if err := json.Unmarshal(data, &valid); err != nil {
-		stdlog.Fatalf("unable to parse contents of %s: %v", os.Args[1], err)
+		stdlog.Fatalf("unable to parse contents of %s: %v", *path, err)
 	}
 
 	provider, err := oidc.NewProvider(context.Background(), *issuerURL)

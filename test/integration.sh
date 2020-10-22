@@ -85,7 +85,7 @@ token=$(curl \
 
 (
   ams \
-      --ams.access-reviews ./test/config/access_reviews.json \
+      --ams.access-reviews=./test/config/access_reviews.json \
       --oidc.issuer-url=http://localhost:4444/ \
       --oidc.client-id=tollbooth \
       --web.listen=:8082
@@ -95,13 +95,15 @@ token=$(curl \
 
 (
   ./opa-ams \
-      --oidc.issuer-url http://localhost:4444/ \
+      --oidc.issuer-url=http://localhost:4444/ \
       --oidc.client-id=opa-ams \
       --oidc.client-secret=secret \
       --oidc.audience=tollbooth \
-      --ams-url=http://127.0.0.1:8082 \
+      --ams.url=http://127.0.0.1:8082 \
+      --ams.mappings=./test/config/mappings.json \
       --opa.package=observatorium \
       --memcached=localhost:11211 \
+      --resource-type-prefix=observatorium \
       --web.listen=:8080
 ) &
 

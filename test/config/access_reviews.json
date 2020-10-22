@@ -1,14 +1,14 @@
 [
     {
-        "action":"read",
+        "action":"get",
         "account_username":"up",
-        "organization_id":"",
-        "resource_type":"MetricsTest-Oidc"
+        "organization_id":"foo",
+        "resource_type":"ObservatoriumMetrics"
     },
     {
-        "action":"write",
+        "action":"create",
         "account_username":"up",
-        "organization_id":"",
-        "resource_type":"MetricsTest-Oidc"
+        "organization_id":"foo",
+        "resource_type":"ObservatoriumMetrics"
     }
 ]

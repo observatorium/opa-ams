@@ -32,6 +32,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/observatorium/observatorium/rbac"
 	"github.com/observatorium/opa-ams/ams"
 )
 
@@ -46,9 +47,9 @@ var (
 
 type config struct {
 	amsURL             string
-	logLevelRaw        string
 	logLevel           level.Option
 	logFormat          string
+	mappings           map[string]string
 	name               string
 	resourceTypePrefix string
 
@@ -86,11 +87,12 @@ func parseFlags() (*config, error) {
 	cfg := &config{}
 	flag.StringVar(&cfg.name, "debug.name", "opa-ams", "A name to add as a prefix to log lines.")
 	flag.StringVar(&cfg.resourceTypePrefix, "resource-type-prefix", "", "A prefix to add to the resource name in AMS access review requests.")
-	flag.StringVar(&cfg.logLevelRaw, "log.level", "info", "The log filtering level. Options: 'error', 'warn', 'info', 'debug'.")
+	logLevelRaw := flag.String("log.level", "info", "The log filtering level. Options: 'error', 'warn', 'info', 'debug'.")
 	flag.StringVar(&cfg.logFormat, "log.format", "logfmt", "The log format to use. Options: 'logfmt', 'json'.")
 	flag.StringVar(&cfg.server.listen, "web.listen", ":8080", "The address on which the public server listens.")
 	flag.StringVar(&cfg.server.listenInternal, "web.internal.listen", ":8081", "The address on which the internal server listens.")
-	flag.StringVar(&cfg.amsURL, "ams-url", "", "An AMS URL against which to authorize client requests.")
+	flag.StringVar(&cfg.amsURL, "ams.url", "", "An AMS URL against which to authorize client requests.")
+	mappingsPath := flag.String("ams.mappings", "", "A path to a JSON file containing a map from Observatorium tenant IDs to AMS organization IDs.")
 	flag.StringVar(&cfg.oidc.issuerURL, "oidc.issuer-url", "", "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
 	flag.StringVar(&cfg.oidc.clientSecret, "oidc.client-secret", "", "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	flag.StringVar(&cfg.oidc.clientID, "oidc.client-id", "", "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
@@ -103,7 +105,7 @@ func parseFlags() (*config, error) {
 
 	flag.Parse()
 
-	switch cfg.logLevelRaw {
+	switch *logLevelRaw {
 	case "error":
 		cfg.logLevel = level.AllowError()
 	case "warn":
@@ -113,7 +115,7 @@ func parseFlags() (*config, error) {
 	case "debug":
 		cfg.logLevel = level.AllowDebug()
 	default:
-		return nil, fmt.Errorf("unexpected log level: %s", cfg.logLevelRaw)
+		return nil, fmt.Errorf("unexpected log level: %s", *logLevelRaw)
 	}
 
 	if len(cfg.opa.pkg) > 0 && !validPackage.Match([]byte(cfg.opa.pkg)) {
@@ -122,6 +124,15 @@ func parseFlags() (*config, error) {
 
 	if len(cfg.opa.rule) > 0 && !validRule.Match([]byte(cfg.opa.rule)) {
 		return nil, fmt.Errorf("invalid OPA rule name: %s", cfg.opa.rule)
+	}
+
+	mappingsRaw, err := ioutil.ReadFile(*mappingsPath)
+	if err != nil {
+		stdlog.Fatalf("unable to read JSON file: %v", err)
+	}
+
+	if err := json.Unmarshal(mappingsRaw, &cfg.mappings); err != nil {
+		stdlog.Fatalf("unable to parse contents of %s: %v", *mappingsPath, err)
 	}
 
 	return cfg, nil
@@ -195,7 +206,7 @@ func main() {
 	level.Info(logger).Log("msg", "configuring the OPA endpoint", "path", p)
 	a := &authorizer{client: client, url: amsURL.String()}
 	m := http.NewServeMux()
-	m.HandleFunc(p, hi.NewHandler(prometheus.Labels{"handler": "data"}, http.HandlerFunc(newHandler(a, cfg.resourceTypePrefix))))
+	m.HandleFunc(p, hi.NewHandler(prometheus.Labels{"handler": "data"}, http.HandlerFunc(newHandler(a, cfg.resourceTypePrefix, cfg.mappings))))
 
 	if cfg.server.healthcheckURL != "" {
 		// checks if server is up
@@ -264,7 +275,7 @@ func main() {
 	}
 }
 
-func newHandler(a *authorizer, resourceTypePrefix string) func(http.ResponseWriter, *http.Request) {
+func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string]string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "request must be a POST", http.StatusBadRequest)
@@ -280,11 +291,10 @@ func newHandler(a *authorizer, resourceTypePrefix string) func(http.ResponseWrit
 
 		var req struct {
 			Input struct {
-				Groups     []string `json:"groups"`
-				Permission string   `json:"permission"`
-				Resource   string   `json:"resource"`
-				Subject    string   `json:"subject"`
-				Tenant     string   `json:"tenant"`
+				Permission string `json:"permission"`
+				Resource   string `json:"resource"`
+				Subject    string `json:"subject"`
+				Tenant     string `json:"tenant"`
 			} `json:"input"`
 		}
 		if err := json.Unmarshal(body, &req); err != nil {
@@ -292,14 +302,26 @@ func newHandler(a *authorizer, resourceTypePrefix string) func(http.ResponseWrit
 			return
 		}
 
-		var group string
-		if len(req.Input.Groups) > 0 {
-			group = req.Input.Groups[0]
+		var action string
+		switch req.Input.Permission {
+		case string(rbac.Read):
+			action = "get"
+		case string(rbac.Write):
+			action = "create"
+		default:
+			http.Error(w, "unknown permission", http.StatusBadRequest)
+			return
 		}
 
-		resourceType := fmt.Sprintf("%s%s%s", strings.Title(strings.ToLower(resourceTypePrefix)), strings.Title(strings.ToLower(req.Input.Resource)), strings.Title(strings.ToLower(req.Input.Tenant)))
+		organizationID, ok := mappings[req.Input.Tenant]
+		if !ok {
+			http.Error(w, "unknown tenant", http.StatusBadRequest)
+			return
+		}
 
-		allowed, err := a.authorize(r.Context(), req.Input.Permission, req.Input.Subject, group, resourceType)
+		resourceType := fmt.Sprintf("%s%s", strings.Title(strings.ToLower(resourceTypePrefix)), strings.Title(strings.ToLower(req.Input.Resource)))
+
+		allowed, err := a.authorize(r.Context(), action, req.Input.Subject, organizationID, resourceType)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -330,11 +352,10 @@ func (a *authorizer) authorize(ctx context.Context, action, accountUsername, org
 	if err != nil {
 		return false, fmt.Errorf("failed to make request to AMS endpoint: %w", err)
 	}
+
+	defer res.Body.Close()
+
 	if res.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(res.Body)
-		println("GOT NON-200")
-		println(string(body))
-		println("GOT NON-200")
 		return false, fmt.Errorf("got non-200 status: %s", res.Status)
 	}
 
