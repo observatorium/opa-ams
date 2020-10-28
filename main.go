@@ -23,6 +23,7 @@ import (
 	"github.com/metalmatze/signal/healthcheck"
 	"github.com/metalmatze/signal/internalserver"
 	"github.com/metalmatze/signal/server/signalhttp"
+	"github.com/observatorium/observatorium/rbac"
 	"github.com/oklog/run"
 	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 	"github.com/openshift/telemeter/pkg/cache"
@@ -32,7 +33,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
-	"github.com/observatorium/observatorium/rbac"
 	"github.com/observatorium/opa-ams/ams"
 )
 
@@ -91,6 +91,7 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&cfg.logFormat, "log.format", "logfmt", "The log format to use. Options: 'logfmt', 'json'.")
 	flag.StringVar(&cfg.server.listen, "web.listen", ":8080", "The address on which the public server listens.")
 	flag.StringVar(&cfg.server.listenInternal, "web.internal.listen", ":8081", "The address on which the internal server listens.")
+	flag.StringVar(&cfg.server.healthcheckURL, "web.healthchecks.url", "http://localhost:8080", "The URL against which to run healthchecks.")
 	flag.StringVar(&cfg.amsURL, "ams.url", "", "An AMS URL against which to authorize client requests.")
 	mappingsRaw := flag.StringSlice("ams.mappings", nil, "A list of comma-separated mappings from Observatorium tenants to AMS organization IDs, e.g. foo=bar,x=y")
 	mappingsPath := flag.String("ams.mappings-path", "", "A path to a JSON file containing a map from Observatorium tenants to AMS organization IDs.")
