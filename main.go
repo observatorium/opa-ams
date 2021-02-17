@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	stdlog "log"
@@ -217,7 +218,7 @@ func main() {
 
 	p := path.Join(dataEndpoint, strings.ReplaceAll(cfg.opa.pkg, ".", "/"), cfg.opa.rule)
 	level.Info(logger).Log("msg", "configuring the OPA endpoint", "path", p)
-	a := &authorizer{client: client, url: amsURL.String()}
+	a := &authorizer{client: client, url: amsURL.String(), logger: log.With(logger, "component", "cache")}
 	m := http.NewServeMux()
 	m.HandleFunc(p, hi.NewHandler(prometheus.Labels{"handler": "data"}, http.HandlerFunc(newHandler(a, cfg.resourceTypePrefix, cfg.mappings))))
 
@@ -336,7 +337,11 @@ func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string]st
 
 		allowed, err := a.authorize(r.Context(), action, req.Input.Subject, organizationID, resourceType)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			statusCode := http.StatusInternalServerError
+			if sce, ok := err.(statusCoder); ok {
+				statusCode = sce.statusCode()
+			}
+			http.Error(w, err.Error(), statusCode)
 			return
 		}
 
@@ -344,9 +349,23 @@ func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string]st
 	}
 }
 
+type statusCoder interface {
+	statusCode() int
+}
+
+type statusCodeError struct {
+	error
+	sc int
+}
+
+func (s *statusCodeError) statusCode() int {
+	return s.sc
+}
+
 type authorizer struct {
 	client *http.Client
 	url    string
+	logger log.Logger
 }
 
 func (a *authorizer) authorize(ctx context.Context, action, accountUsername, organizationID, resourceType string) (bool, error) {
@@ -368,8 +387,10 @@ func (a *authorizer) authorize(ctx context.Context, action, accountUsername, org
 
 	defer res.Body.Close()
 
-	if res.StatusCode != 200 {
-		return false, fmt.Errorf("got non-200 status: %s", res.Status)
+	if res.StatusCode/100 != 2 {
+		msg := "got non-200 status from upstream"
+		level.Error(a.logger).Log("msg", msg, "status", res.Status)
+		return false, &statusCodeError{errors.New(msg), res.StatusCode}
 	}
 
 	var accessReviewResponse struct {
