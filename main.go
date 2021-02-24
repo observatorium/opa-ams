@@ -381,11 +381,12 @@ func (a *authorizer) authorize(ctx context.Context, action, accountUsername, org
 	}
 
 	res, err := a.client.Post(a.url, "application/json", bytes.NewBuffer(j))
+	if res != nil {
+		defer res.Body.Close()
+	}
 	if err != nil {
 		return false, fmt.Errorf("failed to make request to AMS endpoint: %w", err)
 	}
-
-	defer res.Body.Close()
 
 	if res.StatusCode/100 != 2 {
 		msg := "got non-200 status from upstream"
