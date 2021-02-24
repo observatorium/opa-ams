@@ -174,6 +174,11 @@ func main() {
 	defer level.Info(logger).Log("msg", "exiting")
 
 	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+
 	hi := signalhttp.NewHandlerInstrumenter(reg, []string{"handler"})
 	rti := newRoundTripperInstrumenter(reg)
 
