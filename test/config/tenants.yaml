@@ -6,3 +6,12 @@ tenants:
     issuerURL: http://localhost:4444/
   opa:
     url: http://127.0.0.1:8080/v1/data/observatorium/allow
+- name: test-delegate-authz
+  id: da27d8b7-1baf-4dd0-a468-55bb4efa601a
+  oidc:
+    clientID: observatorium
+    issuerURL: http://localhost:4444/
+  opa:
+    query: data.observatorium.allow
+    paths:
+      - ./test/config/observatorium.rego
