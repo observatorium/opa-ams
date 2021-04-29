@@ -32,6 +32,18 @@ curl \
 curl \
     --header "Content-Type: application/json" \
     --request POST \
+    --data '{"audience": ["observatorium"], "client_id": "read-only", "client_secret": "secret", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_post"}' \
+    http://127.0.0.1:4445/clients
+
+curl \
+    --header "Content-Type: application/json" \
+    --request POST \
+    --data '{"audience": ["observatorium"], "client_id": "write-only", "client_secret": "secret", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_post"}' \
+    http://127.0.0.1:4445/clients
+
+curl \
+    --header "Content-Type: application/json" \
+    --request POST \
     --data '{"audience": ["tollbooth"], "client_id": "opa-ams", "client_secret": "secret", "grant_types": ["client_credentials"], "token_endpoint_auth_method": "client_secret_basic"}' \
     http://127.0.0.1:4445/clients
 
@@ -39,13 +51,35 @@ echo "-------------------------------------------"
 echo "- Getting authentication token...         -"
 echo "-------------------------------------------"
 
-token=$(curl \
+up_token=$(curl \
     --request POST \
     --silent \
     --url http://127.0.0.1:4444/oauth2/token \
     --header 'content-type: application/x-www-form-urlencoded' \
     --data grant_type=client_credentials \
     --data client_id=up \
+    --data client_secret=secret \
+    --data audience=observatorium \
+    --data scope="openid" | sed 's/^{.*"access_token":[^"]*"\([^"]*\)".*}/\1/')
+
+read_only_token=$(curl \
+    --request POST \
+    --silent \
+    --url http://127.0.0.1:4444/oauth2/token \
+    --header 'content-type: application/x-www-form-urlencoded' \
+    --data grant_type=client_credentials \
+    --data client_id=read-only \
+    --data client_secret=secret \
+    --data audience=observatorium \
+    --data scope="openid" | sed 's/^{.*"access_token":[^"]*"\([^"]*\)".*}/\1/')
+
+write_only_token=$(curl \
+    --request POST \
+    --silent \
+    --url http://127.0.0.1:4444/oauth2/token \
+    --header 'content-type: application/x-www-form-urlencoded' \
+    --data grant_type=client_credentials \
+    --data client_id=write-only \
     --data client_secret=secret \
     --data audience=observatorium \
     --data scope="openid" | sed 's/^{.*"access_token":[^"]*"\([^"]*\)".*}/\1/')
@@ -101,6 +135,7 @@ token=$(curl \
       --oidc.audience=tollbooth \
       --ams.url=http://127.0.0.1:8082 \
       --ams.mappings=test-oidc=foo \
+      --ams.mappings=test-delegate-authz=bar \
       --opa.package=observatorium \
       --memcached=localhost:11211 \
       --resource-type-prefix=observatorium \
@@ -134,15 +169,48 @@ if up \
   --log.level=error \
   --name=observatorium_write \
   --labels='_id="test"' \
-  --token="$token"; then
+  --token="$up_token"; then
   result=0
   echo "-------------------------------------------"
-  echo "- tests: OK                        -"
+  echo "- tests: OK                               -"
   echo "-------------------------------------------"
 else
   result=1
   echo "-------------------------------------------"
-  echo "- tests: FAILED                   -"
+  echo "- tests: FAILED                           -"
+  echo "-------------------------------------------"
+  exit 1
+fi
+
+echo "-------------------------------------------"
+echo "- Authorization delegation test           -"
+echo "-------------------------------------------"
+
+up \
+  --listen=0.0.0.0:8888 \
+  --endpoint-type=metrics \
+  --endpoint-write=http://127.0.0.1:8443/api/metrics/v1/test-delegate-authz/api/v1/receive \
+  --period=100ms \
+  --threshold=1 \
+  --duration=2s \
+  --log.level=error \
+  --name=observatorium_write \
+  --labels='_id="test"' \
+  --token="$write_only_token"
+
+if curl \
+  --fail \
+  --verbose \
+  --header "Authorization: bearer $read_only_token" \
+  http://127.0.0.1:8443/api/metrics/v1/test-delegate-authz/api/v1/query?query=up; then
+  result=0
+  echo "-------------------------------------------"
+  echo "- test: OK                                -"
+  echo "-------------------------------------------"
+else
+  result=1
+  echo "-------------------------------------------"
+  echo "- test: FAILED                            -"
   echo "-------------------------------------------"
   exit 1
 fi

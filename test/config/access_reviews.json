@@ -10,5 +10,11 @@
         "account_username":"up",
         "organization_id":"foo",
         "resource_type":"ObservatoriumMetrics"
+    },
+    {
+        "action":"create",
+        "account_username":"write-only",
+        "organization_id":"bar",
+        "resource_type":"ObservatoriumMetrics"
     }
 ]
