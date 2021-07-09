@@ -15,7 +15,7 @@ DOCKER_REPO ?= quay.io/observatorium/opa-ams
 
 THANOS ?= $(BIN_DIR)/thanos
 THANOS_VERSION ?= 0.13.0
-OBSERVATORIUM ?= $(BIN_DIR)/observatorium
+API ?= $(BIN_DIR)/api
 UP ?= $(BIN_DIR)/up
 HYDRA ?= $(BIN_DIR)/hydra
 GOLANGCILINT ?= $(FIRST_GOPATH)/bin/golangci-lint
@@ -97,7 +97,7 @@ container-release: container
 	docker push $(DOCKER_REPO):latest
 
 .PHONY: integration-test-dependencies
-integration-test-dependencies: $(THANOS) $(UP) $(HYDRA) $(OBSERVATORIUM) $(MEMCACHED) $(AMS)
+integration-test-dependencies: $(THANOS) $(UP) $(HYDRA) $(API) $(MEMCACHED) $(AMS)
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
@@ -109,8 +109,8 @@ $(THANOS): | $(BIN_DIR)
 	@echo "Downloading Thanos"
 	curl -L "https://github.com/thanos-io/thanos/releases/download/v$(THANOS_VERSION)/thanos-$(THANOS_VERSION).$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
 
-$(OBSERVATORIUM): | $(BIN_DIR)
-	go build -o $@ github.com/observatorium/observatorium
+$(API): | $(BIN_DIR)
+	go build -o $@ github.com/observatorium/api
 
 $(UP): | $(BIN_DIR)
 	go build -o $@ github.com/observatorium/up/cmd/up

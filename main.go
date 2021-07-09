@@ -25,7 +25,7 @@ import (
 	"github.com/metalmatze/signal/healthcheck"
 	"github.com/metalmatze/signal/internalserver"
 	"github.com/metalmatze/signal/server/signalhttp"
-	"github.com/observatorium/observatorium/rbac"
+	"github.com/observatorium/api/rbac"
 	"github.com/oklog/run"
 	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 	"github.com/openshift/telemeter/pkg/cache"
