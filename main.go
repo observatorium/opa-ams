@@ -26,12 +26,15 @@ import (
 	"github.com/metalmatze/signal/internalserver"
 	"github.com/metalmatze/signal/server/signalhttp"
 	"github.com/observatorium/api/rbac"
+	"github.com/observatorium/api/tracing"
 	"github.com/oklog/run"
 	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 	"github.com/openshift/telemeter/pkg/cache"
 	"github.com/openshift/telemeter/pkg/cache/memcached"
 	"github.com/prometheus/client_golang/prometheus"
 	flag "github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
@@ -59,6 +62,7 @@ type config struct {
 	opa       opaConfig
 	memcached memcachedConfig
 	server    serverConfig
+	tracing   tracingConfig
 }
 
 type opaConfig struct {
@@ -85,7 +89,16 @@ type oidcConfig struct {
 	issuerURL    string
 }
 
+type tracingConfig struct {
+	serviceName      string
+	endpoint         string
+	endpointType     tracing.EndpointType
+	samplingFraction float64
+}
+
 func parseFlags() (*config, error) {
+	var rawTracingEndpointType string
+
 	cfg := &config{}
 	flag.StringVar(&cfg.name, "debug.name", "opa-ams", "A name to add as a prefix to log lines.")
 	flag.StringVar(&cfg.resourceTypePrefix, "resource-type-prefix", "", "A prefix to add to the resource name in AMS access review requests.")
@@ -97,6 +110,14 @@ func parseFlags() (*config, error) {
 	flag.StringVar(&cfg.amsURL, "ams.url", "", "An AMS URL against which to authorize client requests.")
 	mappingsRaw := flag.StringSlice("ams.mappings", nil, "A list of comma-separated mappings from Observatorium tenants to AMS organization IDs, e.g. foo=bar,x=y")
 	mappingsPath := flag.String("ams.mappings-path", "", "A path to a JSON file containing a map from Observatorium tenants to AMS organization IDs.")
+	flag.StringVar(&cfg.tracing.serviceName, "internal.tracing.service-name", "opa-ams",
+		"The service name to report to the tracing backend.")
+	flag.StringVar(&cfg.tracing.endpoint, "internal.tracing.endpoint", "",
+		"The full URL of the trace agent or collector. If it's not set, tracing will be disabled.")
+	flag.StringVar(&rawTracingEndpointType, "internal.tracing.endpoint-type", string(tracing.EndpointTypeAgent),
+		fmt.Sprintf("The tracing endpoint type. Options: '%s', '%s'.", tracing.EndpointTypeAgent, tracing.EndpointTypeCollector))
+	flag.Float64Var(&cfg.tracing.samplingFraction, "internal.tracing.sampling-fraction", 0.1,
+		"The fraction of traces to sample. Thus, if you set this to .5, half of traces will be sampled.")
 	flag.StringVar(&cfg.oidc.issuerURL, "oidc.issuer-url", "", "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
 	flag.StringVar(&cfg.oidc.clientSecret, "oidc.client-secret", "", "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	flag.StringVar(&cfg.oidc.clientID, "oidc.client-id", "", "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
@@ -150,6 +171,8 @@ func parseFlags() (*config, error) {
 		}
 	}
 
+	cfg.tracing.endpointType = tracing.EndpointType(rawTracingEndpointType)
+
 	return cfg, nil
 }
 
@@ -179,6 +202,20 @@ func main() {
 		prometheus.NewGoCollector(),
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 	)
+
+	tp, closer, err := tracing.InitTracer(
+		cfg.tracing.serviceName,
+		cfg.tracing.endpoint,
+		cfg.tracing.endpointType,
+		cfg.tracing.samplingFraction,
+	)
+	if err != nil {
+		stdlog.Fatalf("initialize tracer: %v", err)
+	}
+
+	defer closer()
+
+	otel.SetErrorHandler(otelErrorHandler{logger: logger})
 
 	hi := signalhttp.NewHandlerInstrumenter(reg, []string{"handler"})
 	rti := newRoundTripperInstrumenter(reg)
@@ -211,10 +248,11 @@ func main() {
 		}
 	}
 	client := &http.Client{
-		Transport: &oauth2.Transport{
-			Base:   rti.NewRoundTripper("ams", http.DefaultTransport),
-			Source: oidcConfig.TokenSource(ctx),
-		},
+		Transport: otelhttp.NewTransport(
+			&oauth2.Transport{
+				Base:   rti.NewRoundTripper("ams", http.DefaultTransport),
+				Source: oidcConfig.TokenSource(ctx),
+			}),
 	}
 
 	if len(cfg.memcached.servers) > 0 {
@@ -258,7 +296,7 @@ func main() {
 	{
 		s := http.Server{
 			Addr:    cfg.server.listen,
-			Handler: m,
+			Handler: otelhttp.NewHandler(m, "opa-ams", otelhttp.WithTracerProvider(tp)),
 		}
 
 		g.Add(func() error {
@@ -411,4 +449,12 @@ func (a *authorizer) authorize(ctx context.Context, action, accountUsername, org
 	}
 
 	return accessReviewResponse.Allowed, nil
+}
+
+type otelErrorHandler struct {
+	logger log.Logger
+}
+
+func (oh otelErrorHandler) Handle(err error) {
+	level.Error(oh.logger).Log("msg", "opentelemetry", "err", err.Error())
 }
