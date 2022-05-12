@@ -317,7 +317,7 @@ func main() {
 
 		s := http.Server{
 			Addr:    cfg.server.listenInternal,
-			Handler: h,
+			Handler: otelhttp.NewHandler(h, "opa-ams-internal", otelhttp.WithTracerProvider(tp)),
 		}
 
 		g.Add(func() error {
