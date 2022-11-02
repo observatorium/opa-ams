@@ -468,15 +468,6 @@ func (a *authorizer) reviewAccessForOrgId(ar ams.AccessReview) (bool, error) {
 		return false, fmt.Errorf("failed to unmarshal access review response: %w", err)
 	}
 
-	if res.StatusCode/100 != 2 {
-		msg := "got non-200 status from upstream"
-		level.Error(a.logger).Log("msg", msg, "status", res.Status)
-		if _, err = io.Copy(ioutil.Discard, res.Body); err != nil {
-			level.Error(a.logger).Log("msg", "failed to discard response body", "err", err.Error())
-		}
-		return false, &statusCodeError{errors.New(msg), res.StatusCode}
-	}
-
 	return accessReviewResponse.Allowed, nil
 }
 
