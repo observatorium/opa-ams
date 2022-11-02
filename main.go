@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"io"
 	"io/ioutil"
 	stdlog "log"
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/efficientgo/core/merrors"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/metalmatze/signal/healthcheck"
@@ -414,7 +414,7 @@ type authorizer struct {
 }
 
 func (a *authorizer) authorize(action string, accountUsername string, allowedOrganizationIDs []string, resourceType string) (bool, error) {
-	var errs error
+	errs := merrors.New()
 
 	for _, orgId := range allowedOrganizationIDs {
 		ar := ams.AccessReview{
@@ -427,7 +427,7 @@ func (a *authorizer) authorize(action string, accountUsername string, allowedOrg
 		allowed, err := a.reviewAccessForOrgId(ar)
 
 		if err != nil {
-			errs = multierror.Append(err, errs)
+			errs.Add(err)
 		}
 
 		if allowed {
@@ -435,7 +435,7 @@ func (a *authorizer) authorize(action string, accountUsername string, allowedOrg
 		}
 	}
 
-	return false, errs
+	return false, errs.Err()
 }
 
 func (a *authorizer) reviewAccessForOrgId(ar ams.AccessReview) (bool, error) {
