@@ -7,6 +7,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/go-kit/kit v0.10.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.3 // indirect
+	github.com/hashicorp/go-multierror v1.0.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/metalmatze/signal v0.0.0-20201002154727-d0c16e42a3cf
 	github.com/observatorium/api v0.1.2

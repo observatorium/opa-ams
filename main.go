@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"io"
 	"io/ioutil"
 	stdlog "log"
@@ -54,7 +55,7 @@ type config struct {
 	amsURL             string
 	logLevel           level.Option
 	logFormat          string
-	mappings           map[string]string
+	mappings           map[string][]string
 	name               string
 	resourceTypePrefix string
 
@@ -151,13 +152,13 @@ func parseFlags() (*config, error) {
 		return nil, fmt.Errorf("invalid OPA rule name: %s", cfg.opa.rule)
 	}
 
-	cfg.mappings = make(map[string]string)
+	cfg.mappings = make(map[string][]string)
 	for _, m := range *mappingsRaw {
 		parts := strings.Split(m, "=")
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid mapping: %q", m)
 		}
-		cfg.mappings[parts[0]] = parts[1]
+		cfg.mappings[parts[0]] = append(cfg.mappings[parts[0]], parts[1])
 	}
 
 	if len(*mappingsPath) > 0 {
@@ -333,7 +334,7 @@ func main() {
 	}
 }
 
-func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string]string) func(http.ResponseWriter, *http.Request) {
+func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string][]string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "request must be a POST", http.StatusBadRequest)
@@ -371,7 +372,7 @@ func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string]st
 			return
 		}
 
-		organizationID, ok := mappings[req.Input.Tenant]
+		allowedOrganizationIDs, ok := mappings[req.Input.Tenant]
 		if !ok {
 			http.Error(w, "unknown tenant", http.StatusBadRequest)
 			return
@@ -379,7 +380,7 @@ func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string]st
 
 		resourceType := fmt.Sprintf("%s%s", strings.Title(strings.ToLower(resourceTypePrefix)), strings.Title(strings.ToLower(req.Input.Resource)))
 
-		allowed, err := a.authorize(r.Context(), action, req.Input.Subject, organizationID, resourceType)
+		allowed, err := a.authorize(action, req.Input.Subject, allowedOrganizationIDs, resourceType)
 		if err != nil {
 			statusCode := http.StatusInternalServerError
 			if sce, ok := err.(statusCoder); ok {
@@ -412,13 +413,32 @@ type authorizer struct {
 	logger log.Logger
 }
 
-func (a *authorizer) authorize(ctx context.Context, action, accountUsername, organizationID, resourceType string) (bool, error) {
-	ar := ams.AccessReview{
-		Action:          action,
-		AccountUsername: accountUsername,
-		OrganizationID:  organizationID,
-		ResourceType:    resourceType,
+func (a *authorizer) authorize(action string, accountUsername string, allowedOrganizationIDs []string, resourceType string) (bool, error) {
+	var errs error
+
+	for _, orgId := range allowedOrganizationIDs {
+		ar := ams.AccessReview{
+			Action:          action,
+			AccountUsername: accountUsername,
+			OrganizationID:  orgId,
+			ResourceType:    resourceType,
+		}
+
+		allowed, err := a.reviewAccessForOrgId(ar)
+
+		if err != nil {
+			errs = multierror.Append(err, errs)
+		}
+
+		if allowed {
+			return true, nil
+		}
 	}
+
+	return false, errs
+}
+
+func (a *authorizer) reviewAccessForOrgId(ar ams.AccessReview) (bool, error) {
 	j, err := json.Marshal(ar)
 	if err != nil {
 		return false, fmt.Errorf("failed to marshal access review to JSON: %w", err)
