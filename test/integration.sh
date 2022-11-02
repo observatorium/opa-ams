@@ -135,6 +135,7 @@ write_only_token=$(curl \
       --oidc.audience=tollbooth \
       --ams.url=http://127.0.0.1:8082 \
       --ams.mappings=test-oidc=foo \
+      --ams.mappings=test-oidc=foo-bar \
       --ams.mappings=test-delegate-authz=bar \
       --opa.package=observatorium \
       --memcached=localhost:11211 \
