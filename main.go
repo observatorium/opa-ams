@@ -426,13 +426,11 @@ func (a *authorizer) authorize(action string, accountUsername string, allowedOrg
 
 		allowed, err := a.reviewAccessForOrgId(ar)
 
-		if err != nil {
-			errs.Add(err)
-		}
-
 		if allowed {
 			return true, nil
 		}
+
+		errs.Add(err)
 	}
 
 	return false, errs.Err()
