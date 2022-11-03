@@ -1,6 +1,6 @@
 module github.com/observatorium/opa-ams
 
-go 1.19
+go 1.16
 
 require (
 	github.com/campoy/embedmd v1.0.0
