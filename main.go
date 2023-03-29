@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/url"
@@ -162,7 +161,7 @@ func parseFlags() (*config, error) {
 	}
 
 	if len(*mappingsPath) > 0 {
-		buf, err := ioutil.ReadFile(*mappingsPath)
+		buf, err := os.ReadFile(*mappingsPath)
 		if err != nil {
 			stdlog.Fatalf("unable to read JSON file: %v", err)
 		}
@@ -341,7 +340,7 @@ func newHandler(a *authorizer, resourceTypePrefix string, mappings map[string][]
 			return
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
@@ -453,7 +452,7 @@ func (a *authorizer) reviewAccessForOrgId(ar ams.AccessReview) (bool, error) {
 	if res.StatusCode/100 != 2 {
 		msg := "got non-200 status from upstream"
 		level.Error(a.logger).Log("msg", msg, "status", res.Status)
-		if _, err = io.Copy(ioutil.Discard, res.Body); err != nil {
+		if _, err = io.Copy(io.Discard, res.Body); err != nil {
 			level.Error(a.logger).Log("msg", "failed to discard response body", "err", err.Error())
 		}
 		return false, &statusCodeError{errors.New(msg), res.StatusCode}
