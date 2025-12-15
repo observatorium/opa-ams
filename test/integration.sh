@@ -85,7 +85,7 @@ write_only_token=$(curl \
     --data scope="openid" | sed 's/^{.*"access_token":[^"]*"\([^"]*\)".*}/\1/')
 
 (
-  api \
+  ${OBSERVATORIUM} \
     --web.listen=0.0.0.0:8443 \
     --web.internal.listen=0.0.0.0:8448 \
     --web.healthchecks.url=http://127.0.0.1:8443 \
@@ -97,24 +97,25 @@ write_only_token=$(curl \
 ) &
 
 (
-  thanos receive \
+  ${THANOS} receive \
     --receive.hashrings-file=./test/config/hashrings.json \
     --receive.local-endpoint=127.0.0.1:10901 \
     --receive.default-tenant-id="1610b0c3-c509-4592-a256-a1871353dbfa" \
     --grpc-address=127.0.0.1:10901 \
     --http-address=127.0.0.1:10902 \
     --remote-write.address=127.0.0.1:19291 \
+    --label=receive_replica=\"0\" \
     --log.level=error \
     --tsdb.path="$(mktemp -d)"
 ) &
 
 (
-  thanos query \
+  ${THANOS} query \
     --grpc-address=127.0.0.1:10911 \
     --http-address=127.0.0.1:9091 \
-    --store=127.0.0.1:10901 \
+    --endpoint=127.0.0.1:10901 \
     --log.level=error \
-    --web.external-prefix=.
+    --query.replica-label=receive_replica
 ) &
 
 (
@@ -154,13 +155,57 @@ until curl --output /dev/null --silent --fail http://127.0.0.1:8081/ready; do
 done
 
 echo "-------------------------------------------"
+echo "- Bootstrap metrics                       -"
+echo "-------------------------------------------"
+
+# Before the query can select the receiver, the latter needs to ingest at least
+# 1 sample for each tenant.
+if ${UP} \
+  --listen=0.0.0.0:8888 \
+  --endpoint-type=metrics \
+  --endpoint-write=http://127.0.0.1:19291/api/v1/receive \
+  --log.level=error \
+  --duration=1s \
+  --latency=1s \
+  --period=500ms && \
+   ${UP} \
+  --listen=0.0.0.0:8888 \
+  --endpoint-type=metrics \
+  --endpoint-write=http://127.0.0.1:19291/api/v1/receive \
+  --log.level=error \
+  --duration=1s \
+  --latency=1s \
+  --threshold=0 \
+  --period=500ms \
+  --tenant-header="THANOS-TENANT" \
+  --tenant="da27d8b7-1baf-4dd0-a468-55bb4efa601a"; then
+  result=0
+else
+  result=1
+  echo "-------------------------------------------"
+  echo "- tests: FAILED                           -"
+  echo "-------------------------------------------"
+  exit 1
+fi
+
+# Ensure that the query has updated the minTime value of the receiver.
+until [ "$(curl --silent --fail http://127.0.0.1:9091/api/v1/stores | jq ".data.receive[0].minTime < now * 1000")" == "true" ]; do
+  printf '.'
+  sleep 1
+done
+
+echo "-------------------------------------------"
+echo "- tests: OK                               -"
+echo "-------------------------------------------"
+
+echo "-------------------------------------------"
 echo "- Metrics tests                           -"
 echo "-------------------------------------------"
 
-if up \
+if ${UP} \
   --listen=0.0.0.0:8888 \
   --endpoint-type=metrics \
-  --endpoint-read=http://127.0.0.1:8443/api/metrics/v1/test-oidc/api/v1/query \
+  --endpoint-read=http://127.0.0.1:8443/api/metrics/v1/test-oidc \
   --endpoint-write=http://127.0.0.1:8443/api/metrics/v1/test-oidc/api/v1/receive \
   --period=500ms \
   --initial-query-delay=250ms \
@@ -187,7 +232,7 @@ echo "-------------------------------------------"
 echo "- Authorization delegation test           -"
 echo "-------------------------------------------"
 
-up \
+${UP} \
   --listen=0.0.0.0:8888 \
   --endpoint-type=metrics \
   --endpoint-write=http://127.0.0.1:8443/api/metrics/v1/test-delegate-authz/api/v1/receive \

@@ -6,7 +6,7 @@ jobs:
     steps:
       - checkout
       - run: |
-          make opa-ams
+          make build
           git diff --exit-code
 
   lint:
@@ -24,7 +24,7 @@ jobs:
     steps:
       - checkout
       - run: |
-          apt-get update && apt-get -y install xz-utils unzip openssl
+          apt-get update && apt-get -y install xz-utils unzip openssl jq
           make test --always-make
 
   container-push:
