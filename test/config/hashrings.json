@@ -2,7 +2,8 @@
     {
         "hashring": "test",
         "tenants": [
-            "1610b0c3-c509-4592-a256-a1871353dbfa"
+            "1610b0c3-c509-4592-a256-a1871353dbfa",
+            "da27d8b7-1baf-4dd0-a468-55bb4efa601a"
         ],
         "endpoints": [
             "127.0.0.1:10901"
