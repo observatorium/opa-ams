@@ -8,7 +8,7 @@ require (
 	github.com/go-kit/kit v0.10.0
 	github.com/metalmatze/signal v0.0.0-20201002154727-d0c16e42a3cf
 	github.com/observatorium/api v0.1.2
-	github.com/oklog/run v1.1.0
+	github.com/oklog/run v1.2.0
 	github.com/openshift/telemeter v0.0.0-20200917214846-895aca154f5c
 	github.com/prometheus/client_golang v1.5.1
 	github.com/spf13/pflag v1.0.5
