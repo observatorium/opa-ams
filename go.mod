@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/efficientgo/core v1.0.0-rc.0
+	github.com/efficientgo/core v1.0.0-rc.3
 	github.com/go-kit/kit v0.10.0
 	github.com/metalmatze/signal v0.0.0-20201002154727-d0c16e42a3cf
 	github.com/observatorium/api v0.1.2
