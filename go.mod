@@ -11,7 +11,7 @@ require (
 	github.com/oklog/run v1.2.0
 	github.com/openshift/telemeter v0.0.0-20200917214846-895aca154f5c
 	github.com/prometheus/client_golang v1.5.1
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/pflag v1.0.10
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.16.0
 	go.opentelemetry.io/otel v0.16.0
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
